@@ -1,0 +1,13 @@
+# Secrets
+
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go-downtime-api
+/bin/
+/tmp/
