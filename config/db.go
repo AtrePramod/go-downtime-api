@@ -25,7 +25,9 @@ func ConnectDB() {
 		os.Getenv("DB_NAME"),
 	)
 
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	// TranslateError turns Postgres error codes into GORM errors such as
+	// gorm.ErrDuplicatedKey, so handlers can check them with errors.Is.
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{TranslateError: true})
 	if err != nil {
 		log.Fatalf("failed to connect to database: %v", err)
 	}

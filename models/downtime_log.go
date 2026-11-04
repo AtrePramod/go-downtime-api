@@ -1,6 +1,9 @@
 package models
 
-import "time"
+import (
+	"slices"
+	"time"
+)
 
 // Reasons a machine can be down. Go has no enums, so these are string
 // constants, and the database enforces the list with a CHECK constraint.
@@ -19,6 +22,11 @@ var AllReasons = []string{
 	ReasonChangeover,
 	ReasonQualityIssue,
 	ReasonPowerCut,
+}
+
+// IsValidReason reports whether r is one of AllReasons (exact, case-sensitive match).
+func IsValidReason(r string) bool {
+	return slices.Contains(AllReasons, r)
 }
 
 // DowntimeLog records one period when a machine was not running.
