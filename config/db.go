@@ -7,6 +7,8 @@ import (
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+
+	"go-downtime-api/models"
 )
 
 // DB is the shared database connection used by the whole app.
@@ -30,4 +32,13 @@ func ConnectDB() {
 
 	DB = db
 	log.Println("connected to PostgreSQL")
+}
+
+// Migrate creates or updates the tables for all models.
+// It only adds missing tables, columns, indexes and constraints; it never drops anything.
+func Migrate() {
+	if err := DB.AutoMigrate(&models.Machine{}, &models.DowntimeLog{}); err != nil {
+		log.Fatalf("failed to migrate database: %v", err)
+	}
+	log.Println("database migrated")
 }

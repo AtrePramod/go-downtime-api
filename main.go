@@ -17,6 +17,7 @@ func main() {
 	}
 
 	config.ConnectDB()
+	config.Migrate()
 
 	e := echo.New()
 
