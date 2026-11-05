@@ -361,6 +361,11 @@ CGO_ENABLED=1 go run -race .
 
 ## What I learned
 
-1. _TODO_
-2. _TODO_
-3. _TODO_
+1. **Running things in parallel doesn't automatically make them faster.**
+   I expected goroutines to instantly speed up my report. Instead my first concurrent version was about **30× slower** (35–140 ms vs about 1 ms), because Go's database pool keeps only 2 idle connections by default and my 4 parallel queries kept opening new ones. After `SetMaxIdleConns(10)`, concurrent took about **0.25 ms** vs about **0.55 ms** for sequential. Lesson: measure, don't assume.
+
+2. **Errors are just return values. No try/catch.**
+   Coming from Node.js and NestJS, writing `if err != nil` after almost every line felt repetitive at first. But now I can see exactly where each thing can fail, and `errors.Is(err, gorm.ErrRecordNotFound)` makes turning a database error into a clean 404 very simple. It's more typing, but there are fewer surprises.
+
+3. **Avoiding race conditions was simpler than I thought, but checking for them was confusing.**
+   The trick is to give each goroutine its own variable to write to, and read the results only after `g.Wait()`. That way no locks are needed. The confusing part: Go's race detector (`go run -race .`) on Windows needs a C compiler (GCC) installed, which nobody mentions upfront.
