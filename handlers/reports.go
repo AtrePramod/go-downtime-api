@@ -54,11 +54,10 @@ func (h *Handler) DailyReport(c echo.Context) error {
 	if rawDate == "" {
 		return errorJSON(c, http.StatusBadRequest, "date is required (YYYY-MM-DD)")
 	}
-	day, err := time.ParseInLocation(time.DateOnly, rawDate, time.Local)
+	from, to, err := parseDay(rawDate)
 	if err != nil {
-		return errorJSON(c, http.StatusBadRequest, "date must be in YYYY-MM-DD format")
+		return errorJSON(c, http.StatusBadRequest, err.Error())
 	}
-	from, to := day, day.AddDate(0, 0, 1)
 
 	mode := c.QueryParam("mode")
 	if mode == "" {

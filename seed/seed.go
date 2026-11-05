@@ -68,7 +68,7 @@ func main() {
 			Reason:    models.AllReasons[rand.IntN(len(models.AllReasons))],
 			StartTime: start,
 			EndTime:   end,
-			Minutes:   int(end.Sub(start).Minutes()),
+			Minutes:   models.MinutesBetween(start, end),
 		})
 	}
 

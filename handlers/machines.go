@@ -3,7 +3,6 @@ package handlers
 import (
 	"errors"
 	"net/http"
-	"strings"
 
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
@@ -24,13 +23,8 @@ func (h *Handler) CreateMachine(c echo.Context) error {
 		return errorJSON(c, http.StatusBadRequest, "invalid JSON body")
 	}
 
-	req.Name = strings.TrimSpace(req.Name)
-	req.Line = strings.TrimSpace(req.Line)
-	if req.Name == "" {
-		return errorJSON(c, http.StatusBadRequest, "name is required")
-	}
-	if req.Line == "" {
-		return errorJSON(c, http.StatusBadRequest, "line is required")
+	if err := req.Validate(); err != nil {
+		return errorJSON(c, http.StatusBadRequest, err.Error())
 	}
 
 	machine := models.Machine{Name: req.Name, Line: req.Line}

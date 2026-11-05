@@ -3,8 +3,6 @@ package handlers
 import (
 	"errors"
 	"net/http"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -32,18 +30,8 @@ func (h *Handler) CreateDowntime(c echo.Context) error {
 	}
 
 	// 1. Cheap checks on the body first: 400 Bad Request.
-	if req.MachineID == 0 {
-		return errorJSON(c, http.StatusBadRequest, "machine_id is required")
-	}
-	if req.StartTime == nil || req.EndTime == nil {
-		return errorJSON(c, http.StatusBadRequest, "start_time and end_time are required")
-	}
-	if !req.EndTime.After(*req.StartTime) {
-		return errorJSON(c, http.StatusBadRequest, "end_time must be after start_time")
-	}
-	if !models.IsValidReason(req.Reason) {
-		return errorJSON(c, http.StatusBadRequest,
-			"reason must be one of: "+strings.Join(models.AllReasons, ", "))
+	if err := req.Validate(); err != nil {
+		return errorJSON(c, http.StatusBadRequest, err.Error())
 	}
 
 	// 2. Then check the machine exists: 404 Not Found.
@@ -61,7 +49,7 @@ func (h *Handler) CreateDowntime(c echo.Context) error {
 		Reason:    req.Reason,
 		StartTime: *req.StartTime,
 		EndTime:   *req.EndTime,
-		Minutes:   int(req.EndTime.Sub(*req.StartTime).Minutes()),
+		Minutes:   models.MinutesBetween(*req.StartTime, *req.EndTime),
 	}
 	if err := h.DB.Create(&entry).Error; err != nil {
 		return internalError(c, err)
@@ -75,23 +63,32 @@ func (h *Handler) CreateDowntime(c echo.Context) error {
 //	?machine_id=3       only logs for that machine
 //	?date=2026-11-04    only logs that started on that day (server's local time zone)
 func (h *Handler) ListDowntime(c echo.Context) error {
-	query := h.DB.Model(&models.DowntimeLog{}).Order("start_time DESC")
-
+	// Check every query parameter before touching the database.
+	var machineID uint
 	if raw := c.QueryParam("machine_id"); raw != "" {
-		id, err := strconv.ParseUint(raw, 10, 64)
-		if err != nil || id == 0 {
-			return errorJSON(c, http.StatusBadRequest, "machine_id must be a positive integer")
+		id, err := parseMachineID(raw)
+		if err != nil {
+			return errorJSON(c, http.StatusBadRequest, err.Error())
 		}
-		query = query.Where("machine_id = ?", id)
+		machineID = id
 	}
 
+	var from, to time.Time
 	if raw := c.QueryParam("date"); raw != "" {
-		day, err := time.ParseInLocation(time.DateOnly, raw, time.Local)
+		f, t, err := parseDay(raw)
 		if err != nil {
-			return errorJSON(c, http.StatusBadRequest, "date must be in YYYY-MM-DD format")
+			return errorJSON(c, http.StatusBadRequest, err.Error())
 		}
-		// A half-open range [day, next day) can use the start_time index.
-		query = query.Where("start_time >= ? AND start_time < ?", day, day.AddDate(0, 0, 1))
+		from, to = f, t
+	}
+
+	query := h.DB.Model(&models.DowntimeLog{}).Order("start_time DESC")
+	if machineID != 0 {
+		query = query.Where("machine_id = ?", machineID)
+	}
+	if !from.IsZero() {
+		// A half-open range [from, to) can use the start_time index.
+		query = query.Where("start_time >= ? AND start_time < ?", from, to)
 	}
 
 	logs := []models.DowntimeLog{}

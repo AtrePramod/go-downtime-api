@@ -29,6 +29,16 @@ func IsValidReason(r string) bool {
 	return slices.Contains(AllReasons, r)
 }
 
+// MinutesBetween returns the whole minutes from start to end, dropping any
+// leftover seconds (8:00:00 to 8:45:59 is 45). Time zones don't matter:
+// it compares the actual instants. Returns 0 if end is not after start.
+func MinutesBetween(start, end time.Time) int {
+	if !end.After(start) {
+		return 0
+	}
+	return int(end.Sub(start) / time.Minute)
+}
+
 // DowntimeLog records one period when a machine was not running.
 // GORM maps it to the "downtime_logs" table.
 type DowntimeLog struct {

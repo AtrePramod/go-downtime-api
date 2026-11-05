@@ -1,0 +1,313 @@
+{
+  "info": {
+    "name": "go-downtime-api",
+    "description": "Every endpoint of the downtime API, with success and error cases. Each request has a test that checks the status code and the {\"error\": \"...\"} shape. Run the whole folder in order with the Collection Runner: later requests reuse the machine created in 'Machines > Create machine (201)'.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "date", "value": "2026-11-03" },
+    { "key": "machineName", "value": "" },
+    { "key": "machineId", "value": "1" }
+  ],
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Shared check for every request: error responses must be {\"error\": \"...\"}.",
+          "if (pm.response.code >= 400) {",
+          "  pm.test('error body is {\"error\": string}', () => {",
+          "    const body = pm.response.json();",
+          "    pm.expect(body).to.have.property('error').that.is.a('string');",
+          "  });",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health check (200)",
+          "request": { "method": "GET", "url": "{{baseUrl}}/health" },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('status 200', () => pm.response.to.have.status(200));"
+          ] } }]
+        }
+      ]
+    },
+    {
+      "name": "Machines",
+      "item": [
+        {
+          "name": "Create machine (201)",
+          "event": [
+            { "listen": "prerequest", "script": { "type": "text/javascript", "exec": [
+              "// Unique name each run, so this never clashes with an existing machine.",
+              "pm.collectionVariables.set('machineName', 'Test-' + Date.now());"
+            ] } },
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('status 201', () => pm.response.to.have.status(201));",
+              "const m = pm.response.json();",
+              "pm.test('has id, name, line', () => {",
+              "  pm.expect(m.id).to.be.a('number');",
+              "  pm.expect(m.name).to.eql(pm.collectionVariables.get('machineName'));",
+              "  pm.expect(m.line).to.eql('Line A');",
+              "});",
+              "pm.collectionVariables.set('machineId', m.id);"
+            ] } }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"{{machineName}}\",\n  \"line\": \"Line A\"\n}" },
+            "url": "{{baseUrl}}/machines"
+          }
+        },
+        {
+          "name": "Create machine - duplicate name (409)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('status 409', () => pm.response.to.have.status(409));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"{{machineName}}\",\n  \"line\": \"Line A\"\n}" },
+            "url": "{{baseUrl}}/machines"
+          }
+        },
+        {
+          "name": "Create machine - missing line (400)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('status 400', () => pm.response.to.have.status(400));",
+            "pm.test('message', () => pm.expect(pm.response.json().error).to.eql('line is required'));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"CNC-99\"\n}" },
+            "url": "{{baseUrl}}/machines"
+          }
+        },
+        {
+          "name": "Create machine - blank name (400)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('status 400', () => pm.response.to.have.status(400));",
+            "pm.test('message', () => pm.expect(pm.response.json().error).to.eql('name is required'));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"   \",\n  \"line\": \"Line A\"\n}" },
+            "url": "{{baseUrl}}/machines"
+          }
+        },
+        {
+          "name": "Create machine - invalid JSON (400)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('status 400', () => pm.response.to.have.status(400));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{ this is not json" },
+            "url": "{{baseUrl}}/machines"
+          }
+        },
+        {
+          "name": "List machines (200)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('status 200', () => pm.response.to.have.status(200));",
+            "pm.test('is an array', () => pm.expect(pm.response.json()).to.be.an('array'));"
+          ] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/machines" }
+        }
+      ]
+    },
+    {
+      "name": "Downtime",
+      "item": [
+        {
+          "name": "Create downtime (201, minutes = 45)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('status 201', () => pm.response.to.have.status(201));",
+            "pm.test('server calculated minutes', () => pm.expect(pm.response.json().minutes).to.eql(45));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"machine_id\": {{machineId}},\n  \"reason\": \"Breakdown\",\n  \"start_time\": \"2026-11-04T08:00:00+05:30\",\n  \"end_time\": \"2026-11-04T08:45:30+05:30\"\n}" },
+            "url": "{{baseUrl}}/downtime"
+          }
+        },
+        {
+          "name": "Create downtime - unknown machine_id (404)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('status 404', () => pm.response.to.have.status(404));",
+            "pm.test('message', () => pm.expect(pm.response.json().error).to.eql('machine not found'));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"machine_id\": 999999,\n  \"reason\": \"Breakdown\",\n  \"start_time\": \"2026-11-04T08:00:00Z\",\n  \"end_time\": \"2026-11-04T08:45:00Z\"\n}" },
+            "url": "{{baseUrl}}/downtime"
+          }
+        },
+        {
+          "name": "Create downtime - end_time before start_time (400)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('status 400', () => pm.response.to.have.status(400));",
+            "pm.test('message', () => pm.expect(pm.response.json().error).to.eql('end_time must be after start_time'));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"machine_id\": {{machineId}},\n  \"reason\": \"Breakdown\",\n  \"start_time\": \"2026-11-04T09:00:00Z\",\n  \"end_time\": \"2026-11-04T08:45:00Z\"\n}" },
+            "url": "{{baseUrl}}/downtime"
+          }
+        },
+        {
+          "name": "Create downtime - invalid reason (400)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('status 400', () => pm.response.to.have.status(400));",
+            "pm.test('message lists valid reasons', () => pm.expect(pm.response.json().error).to.include('reason must be one of'));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"machine_id\": {{machineId}},\n  \"reason\": \"Coffee break\",\n  \"start_time\": \"2026-11-04T08:00:00Z\",\n  \"end_time\": \"2026-11-04T08:45:00Z\"\n}" },
+            "url": "{{baseUrl}}/downtime"
+          }
+        },
+        {
+          "name": "Create downtime - bad time format (400)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('status 400', () => pm.response.to.have.status(400));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"machine_id\": {{machineId}},\n  \"reason\": \"Breakdown\",\n  \"start_time\": \"04/11/2026 08:00\",\n  \"end_time\": \"2026-11-04T08:45:00Z\"\n}" },
+            "url": "{{baseUrl}}/downtime"
+          }
+        },
+        {
+          "name": "Create downtime - missing fields (400)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('status 400', () => pm.response.to.have.status(400));",
+            "pm.test('message', () => pm.expect(pm.response.json().error).to.eql('machine_id is required'));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"reason\": \"Breakdown\"\n}" },
+            "url": "{{baseUrl}}/downtime"
+          }
+        },
+        {
+          "name": "List downtime - all (200)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('status 200', () => pm.response.to.have.status(200));",
+            "pm.test('is an array', () => pm.expect(pm.response.json()).to.be.an('array'));"
+          ] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/downtime" }
+        },
+        {
+          "name": "List downtime - by machine and date (200)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('status 200', () => pm.response.to.have.status(200));",
+            "pm.test('only machine 1', () => pm.response.json().forEach(l => pm.expect(l.machine_id).to.eql(1)));"
+          ] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/downtime?machine_id=1&date={{date}}" }
+        },
+        {
+          "name": "List downtime - bad date (400)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('status 400', () => pm.response.to.have.status(400));",
+            "pm.test('message', () => pm.expect(pm.response.json().error).to.eql('date must be in YYYY-MM-DD format'));"
+          ] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/downtime?date=2026-13-40" }
+        },
+        {
+          "name": "List downtime - bad machine_id (400)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('status 400', () => pm.response.to.have.status(400));"
+          ] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/downtime?machine_id=abc" }
+        }
+      ]
+    },
+    {
+      "name": "Reports",
+      "item": [
+        {
+          "name": "Daily report - concurrent (200)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('status 200', () => pm.response.to.have.status(200));",
+            "const r = pm.response.json();",
+            "pm.test('mode is concurrent', () => pm.expect(r.mode).to.eql('concurrent'));",
+            "pm.test('has all fields', () => {",
+            "  pm.expect(r).to.have.keys('date','mode','total_downtime_minutes','top_reasons','worst_machine','downtime_by_line','took_ms');",
+            "  pm.expect(r.top_reasons.length).to.be.at.most(3);",
+            "});",
+            "console.log('concurrent took_ms', r.took_ms);"
+          ] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/reports/daily?date={{date}}" }
+        },
+        {
+          "name": "Daily report - sequential (200)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('status 200', () => pm.response.to.have.status(200));",
+            "pm.test('mode is sequential', () => pm.expect(pm.response.json().mode).to.eql('sequential'));",
+            "console.log('sequential took_ms', pm.response.json().took_ms);"
+          ] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/reports/daily?date={{date}}&mode=sequential" }
+        },
+        {
+          "name": "Daily report - day with no data (200, empty)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('status 200', () => pm.response.to.have.status(200));",
+            "const r = pm.response.json();",
+            "pm.test('empty report', () => {",
+            "  pm.expect(r.total_downtime_minutes).to.eql(0);",
+            "  pm.expect(r.worst_machine).to.be.null;",
+            "});"
+          ] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/reports/daily?date=2020-01-01" }
+        },
+        {
+          "name": "Daily report - missing date (400)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('status 400', () => pm.response.to.have.status(400));"
+          ] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/reports/daily" }
+        },
+        {
+          "name": "Daily report - bad date (400)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('status 400', () => pm.response.to.have.status(400));"
+          ] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/reports/daily?date=2026-02-30" }
+        },
+        {
+          "name": "Daily report - bad mode (400)",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('status 400', () => pm.response.to.have.status(400));"
+          ] } }],
+          "request": { "method": "GET", "url": "{{baseUrl}}/reports/daily?date={{date}}&mode=fast" }
+        }
+      ]
+    },
+    {
+      "name": "Unknown route (404)",
+      "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+        "pm.test('status 404', () => pm.response.to.have.status(404));"
+      ] } }],
+      "request": { "method": "GET", "url": "{{baseUrl}}/does-not-exist" }
+    }
+  ]
+}
