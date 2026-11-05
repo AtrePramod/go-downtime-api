@@ -1,4 +1,7 @@
-# Secrets
+# Secrets: real settings live in .env (copy .env.example to create it)
+.env
+.env.*
+!.env.example
 
 # Binaries
 *.exe
@@ -11,3 +14,9 @@
 go-downtime-api
 /bin/
 /tmp/
+
+# Editor / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
