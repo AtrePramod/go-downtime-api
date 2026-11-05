@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -31,6 +32,17 @@ func ConnectDB() {
 	if err != nil {
 		log.Fatalf("failed to connect to database: %v", err)
 	}
+
+	// Tune the connection pool. Go's default keeps only 2 idle connections,
+	// so code that runs several queries at once (like the concurrent daily
+	// report) would open and log in to new connections on every request.
+	sqlDB, err := db.DB()
+	if err != nil {
+		log.Fatalf("failed to get database handle: %v", err)
+	}
+	sqlDB.SetMaxOpenConns(20)                  // never more than 20 connections at once
+	sqlDB.SetMaxIdleConns(10)                  // keep up to 10 ready for reuse
+	sqlDB.SetConnMaxLifetime(30 * time.Minute) // recycle old connections now and then
 
 	DB = db
 	log.Println("connected to PostgreSQL")

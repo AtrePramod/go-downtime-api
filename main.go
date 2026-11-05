@@ -36,6 +36,8 @@ func main() {
 	e.POST("/downtime", h.CreateDowntime)
 	e.GET("/downtime", h.ListDowntime)
 
+	e.GET("/reports/daily", h.DailyReport)
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
